@@ -10,7 +10,10 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES">
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      enableThreadSanitizer = "YES"
+      disableMainThreadChecker = "YES"
+      systemAttachmentLifetime = "keepNever">
       <Testables>
          <TestableReference
             skipped = "NO"
@@ -18,9 +21,9 @@
             testExecutionOrdering = "random">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "DatalogTests"
-               BuildableName = "DatalogTests"
-               BlueprintName = "DatalogTests"
+               BlueprintIdentifier = "BiscuitCryptoTests"
+               BuildableName = "BiscuitCryptoTests"
+               BlueprintName = "BiscuitCryptoTests"
                ReferencedContainer = "container:">
             </BuildableReference>
          </TestableReference>

@@ -1,19 +1,19 @@
 //
 //  Expression.swift
-//  Datalog
+//  Biscuit
 //
 //  Created by Rémi Bardon on 10/05/2021.
 //
 
 import Foundation
 
-public enum Op {
+public enum Operation {
 	case value(ID)
-	case unary(UnaryOp)
-	case binary(BinaryOp)
+	case unary(UnaryOperation)
+	case binary(BinaryOperation)
 }
 
-public enum UnaryOp {
+public enum UnaryOperation {
 	
 	case negate, parens, length
 	
@@ -35,7 +35,7 @@ public enum UnaryOp {
 		}
 	}
 	
-	public func print(_ value: String, _symbols: SymbolTable) -> String {
+	public func print(value: String) -> String {
 		switch self {
 		case .negate:
 			return "!\(value)"
@@ -48,10 +48,13 @@ public enum UnaryOp {
 	
 }
 
-public enum BinaryOp {
+public enum BinaryOperation {
 	
-	case lessThan, greaterThan, lessOrEqual, greaterOrEqual, equal, contains, prefix, suffix, regex
-	case add, sub, mul, div, and, or, intersection, union
+	case lessThan, greaterThan, lessOrEqual, greaterOrEqual, equal
+	case contains, prefix, suffix, regex
+	case add, sub, mul, div
+	case and, or
+	case intersection, union
 	
 	public func evaluate(left: ID, right: ID, symbols: SymbolTable) -> ID? {
 		switch (self, left, right) {
@@ -138,13 +141,14 @@ public enum BinaryOp {
 			return .bool(i && j)
 		case let (.or, .bool(i), .bool(j)):
 			return .bool(i || j)
+		
 		default:
 			assertionFailure("Unexpected value type on the stack")
 			return nil
 		}
 	}
 	
-	public func print(left: String, right: String, _symbols: SymbolTable) -> String {
+	public func print(left: String, right: String) -> String {
 		switch self {
 		case .lessThan:
 			return "\(left) < \(right)"
@@ -187,9 +191,9 @@ public enum BinaryOp {
 
 public struct Expression {
 	
-	public let ops: [Op]
+	public let ops: [Operation]
 	
-	public init(ops: [Op]) {
+	public init(ops: [Operation]) {
 		self.ops = ops
 	}
 	
@@ -199,36 +203,35 @@ public struct Expression {
 		for op in self.ops {
 //			print("op: \(op)\t| stack: \(stack)")
 			switch op {
-			case let .value(.variable(i)):
-				switch values[i] {
-				case let .some(id):
-					stack.append(id)
-				case .none:
+			case .value(.variable(let i)):
+				guard let id = values[i] else {
 					assertionFailure("Unknown variable: \(i)")
 					return nil
 				}
-			case let .value(id):
+				
 				stack.append(id)
-			case let .unary(unary):
-				switch stack.popLast() {
-				case .none:
+			case .value(let id):
+				stack.append(id)
+			case .unary(let unary):
+				guard let id = stack.popLast() else {
 					assertionFailure("Expected a value on the stack")
 					return nil
-				case let .some(id):
-					switch unary.evaluate(id, symbols: symbols) {
-					case let .some(res): stack.append(res)
-					case .none: return nil
-					}
 				}
-			case let .binary(binary):
-				switch (stack.popLast(), stack.popLast()) {
-				case let (.some(rightId), .some(leftId)):
-					switch binary.evaluate(left: leftId, right: rightId, symbols: symbols) {
-					case let .some(res): stack.append(res)
-					case .none: return nil
-					}
-				default:
+				
+				if let res = unary.evaluate(id, symbols: symbols) {
+					stack.append(res)
+				} else {
+					return nil
+				}
+			case .binary(let binary):
+				guard let rightId = stack.popLast(), let leftId = stack.popLast() else {
 					assertionFailure("Expected two values on the stack")
+					return nil
+				}
+				
+				if let res = binary.evaluate(left: leftId, right: rightId, symbols: symbols) {
+					stack.append(res)
+				} else {
 					return nil
 				}
 			}
@@ -247,20 +250,18 @@ public struct Expression {
 		for op in self.ops {
 //			print("op: \(op)\t| stack: \(stack)")
 			switch op {
-			case let .value(i):
-				stack.append(symbols.printId(i))
-			case let .unary(unary):
-				switch stack.popLast() {
-				case .none:
+			case .value(let id):
+				stack.append(symbols.printId(id))
+			case .unary(let unary):
+				if let s = stack.popLast() {
+					stack.append(unary.print(value: s))
+				} else {
 					return nil
-				case let .some(s):
-					stack.append(unary.print(s, _symbols: symbols))
 				}
-			case let .binary(binary):
-				switch (stack.popLast(), stack.popLast()) {
-				case let (.some(right), .some(left)):
-					stack.append(binary.print(left: left, right: right, _symbols: symbols))
-				default:
+			case .binary(let binary):
+				if let right = stack.popLast(), let left = stack.popLast() {
+					stack.append(binary.print(left: left, right: right))
+				} else {
 					return nil
 				}
 			}

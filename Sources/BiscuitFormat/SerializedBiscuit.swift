@@ -40,7 +40,7 @@ public struct SerializedBiscuit {
 		self.proof = proof
 	}
 	
-	public static func fromData(_ data: Data, rootKeyIdHandler: (UInt32?) -> PublicKey) throws -> Self {
+	public init(fromData data: Data, rootKeyIdHandler: (UInt32?) -> PublicKey) throws {
 		let biscuit: Proto_Biscuit
 		do {
 			biscuit = try Proto_Biscuit(serializedData: data)
@@ -87,21 +87,19 @@ public struct SerializedBiscuit {
 			}
 		}()
 		
-		let serializedBiscuit = SerializedBiscuit(
+		self.init(
 			rootKeyId: biscuit.rootKeyId,
 			authority: authority,
 			blocks: blocks,
 			proof: proof
 		)
 		
-		let root = rootKeyIdHandler(serializedBiscuit.rootKeyId)
-		try serializedBiscuit.verify(with: root)
-		
-		return serializedBiscuit
+		let root = rootKeyIdHandler(self.rootKeyId)
+		try self.verify(with: root)
 	}
 	
 	/// Serializes the token
-	public var proto: Proto_Biscuit {
+	internal var proto: Proto_Biscuit {
 		let authority = Proto_SignedBlock.with {
 			$0.block = self.authority.data
 			$0.nextKey = self.authority.nextKey.rawRepresentation
@@ -152,7 +150,7 @@ public struct SerializedBiscuit {
 			throw FormatError.serializationError(error)
 		}
 		
-		let signature = try sign(keyPair: rootKeyPair, nextKey: nextKeyPair, message: data)
+		let signature = try sign(data, with: rootKeyPair, nextKey: nextKeyPair)
 		
 		self.init(
 			rootKeyId: rootKeyId,
@@ -173,7 +171,7 @@ public struct SerializedBiscuit {
 			throw FormatError.serializationError(error)
 		}
 		
-		let signature = try sign(keyPair: keyPair, nextKey: nextKeyPair, message: data)
+		let signature = try sign(data, with: keyPair, nextKey: nextKeyPair)
 		
 		// Add new block
 		var blocks = self.blocks
@@ -196,20 +194,20 @@ public struct SerializedBiscuit {
 		// FIXME: Try batched signature verification
 		var currentPub = root
 		
-		try verifyBlockSignature(of: self.authority, with: currentPub)
+		try self.authority.verifySignature(with: currentPub)
 		
 		currentPub = self.authority.nextKey
 		
 		// Verify all blocks
 		for block in self.blocks {
-			try verifyBlockSignature(of: block, with: currentPub)
+			try block.verifySignature(with: currentPub)
 			currentPub = block.nextKey
 		}
 		
 		switch self.proof {
 		case let .secret(privateKey):
 			if currentPub.rawRepresentation != privateKey.publicKey.rawRepresentation {
-				throw FormatError.signature(.invalidSignature("The last public key does not match the private"))
+				throw CryptoError.signature(.invalidSignature("The last public key does not match the private"))
 			}
 		case let .seal(signature):
 			// FIXME: Replace with SHA512 hashing
@@ -221,7 +219,7 @@ public struct SerializedBiscuit {
 			toVerify.append(block.signature)
 			
 			guard currentPub.isValidSignature(signature, for: toVerify) else {
-				throw FormatError.signature(.invalidSignature("Block signature is invalid"))
+				throw CryptoError.signature(.invalidSignature("Block signature is invalid"))
 			}
 		}
 	}
@@ -235,7 +233,7 @@ public struct SerializedBiscuit {
 		toSign.append(block.nextKey.rawRepresentation)
 		toSign.append(block.signature)
 		
-		let signature = try sign(keyPair: keyPair, message: toSign)
+		let signature = try sign(toSign, with: keyPair)
 		
 		return SerializedBiscuit(
 			rootKeyId: self.rootKeyId,

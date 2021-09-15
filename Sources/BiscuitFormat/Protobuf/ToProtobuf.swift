@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Datalog
+import BiscuitDatalog
 
 extension Token_Block {
 	
@@ -20,7 +20,7 @@ struct TokenToProtobufTransformer {
 	
 	static func protoBlock(from block: Token_Block) -> Proto_Block {
 		Proto_Block.with {
-			$0.symbols = block.symbols.symbols
+			$0.symbols = Array(block.symbols.symbols)
 			$0.optContext = block.context
 			$0.version = block.version
 			$0.factsV2 = block.facts.map(protoFact(from:))
@@ -58,26 +58,26 @@ struct TokenToProtobufTransformer {
 	
 	static func protoExpression(from expression: Expression) -> Proto_ExpressionV2 {
 		Proto_ExpressionV2.with {
-			$0.ops = expression.ops.map(protoOp(from:))
+			$0.ops = expression.ops.map(protoOperation(from:))
 		}
 	}
 	
-	static func protoOp(from op: Op) -> Proto_Op {
+	static func protoOperation(from op: BiscuitDatalog.Operation) -> Proto_Op {
 		Proto_Op.with {
 			switch op {
 			case .value(let id):
 				$0.content = .value(protoId(from: id))
 			case .unary(let unary):
-				$0.content = .unary(protoUnaryOp(from: unary))
+				$0.content = .unary(protoUnaryOperation(from: unary))
 			case .binary(let binary):
-				$0.content = .binary(protoBinaryOp(from: binary))
+				$0.content = .binary(protoBinaryOperation(from: binary))
 			}
 		}
 	}
 	
-	static func protoUnaryOp(from unaryOp: UnaryOp) -> Proto_OpUnary {
+	static func protoUnaryOperation(from unaryOperation: UnaryOperation) -> Proto_OpUnary {
 		Proto_OpUnary.with {
-			switch unaryOp {
+			switch unaryOperation {
 			case .negate:
 				$0.optKind = .negate
 			case .parens:
@@ -88,9 +88,9 @@ struct TokenToProtobufTransformer {
 		}
 	}
 	
-	static func protoBinaryOp(from binaryOp: BinaryOp) -> Proto_OpBinary {
+	static func protoBinaryOperation(from binaryOperation: BinaryOperation) -> Proto_OpBinary {
 		Proto_OpBinary.with {
-			switch binaryOp {
+			switch binaryOperation {
 			case .lessThan:
 				$0.optKind = .lessThan
 			case .greaterThan:
@@ -166,7 +166,7 @@ extension TokenToProtobufTransformer {
 	
 	static func protoVerifier(from verifier: VerifierPolicies) -> Proto_VerifierPolicies {
 		Proto_VerifierPolicies.with {
-			$0.symbols = verifier.symbols.symbols
+			$0.symbols = Array(verifier.symbols.symbols)
 			$0.version = verifier.version
 			$0.facts = verifier.facts.map(protoFact(from:))
 			$0.rules = verifier.rules.map(protoRule(from:))

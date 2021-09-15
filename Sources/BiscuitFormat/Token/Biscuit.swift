@@ -1,31 +1,17 @@
 //
-//  Token.swift
-//  Token
+//  Biscuit.swift
+//  Biscuit
 //
 //  Created by Rémi Bardon on 09/09/2021.
 //
 
 import Foundation
-import Datalog
+import BiscuitShared
+import BiscuitDatalog
 import BiscuitCrypto
 
 /// maximum supported version of the serialization format
 public let MAX_SCHEMA_VERSION: UInt32 = 2
-
-/// Some symbols are predefined and available in every implementation,
-/// to avoid transmitting them with every token.
-public func defaultSymbolTable() -> SymbolTable {
-	var syms = SymbolTable()
-	syms.insert("authority")
-	syms.insert("ambient")
-	syms.insert("resource")
-	syms.insert("operation")
-	syms.insert("right")
-	syms.insert("current_time")
-	syms.insert("revocation_id")
-	
-	return syms
-}
 
 /// This structure represents a valid Biscuit token
 ///
@@ -68,7 +54,7 @@ public struct Biscuit {
 	/// Internal representation of the token
 	public let container: SerializedBiscuit?
 	
-	private init(
+	internal init(
 		rootKeyId: UInt32?,
 		authority: Token_Block,
 		blocks: [Token_Block],
@@ -98,11 +84,11 @@ public struct Biscuit {
 		let h2 = Set(authority.symbols.symbols)
 		
 		if !h1.isDisjoint(with: h2) {
-			throw TokenError.symbolTableOverlap
+			throw BiscuitError.symbolTableOverlap
 		}
 		
 		var symbolTable = symbolTable
-		symbolTable.symbols.append(contentsOf: authority.symbols.symbols)
+		symbolTable.add(contentsOf: authority.symbols.symbols)
 		
 		let container = try SerializedBiscuit(
 			rootKeyId: rootKeyId,
@@ -118,91 +104,6 @@ public struct Biscuit {
 			symbols: symbolTable,
 			container: container
 		)
-	}
-	
-	/// Deserializes a token and validates the signature using the root public key,
-	/// with an optional custom symbol table
-	public static func from(
-		data: Data,
-		rootKeyIdHandler: (UInt32?) -> PublicKey,
-		symbolTable: SymbolTable = defaultSymbolTable()
-	) throws -> Self {
-		let container = try SerializedBiscuit.fromData(data, rootKeyIdHandler: rootKeyIdHandler)
-		
-		func deserialize(_ data: Data, or errorDescription: StaticString) throws -> Token_Block {
-			do {
-				return try Proto_Block(serializedData: data).tokenBlock()
-			} catch let formatError as FormatError {
-				throw TokenError.format(formatError)
-			} catch {
-				throw FormatError.blockDeserializationError("\(errorDescription): \(error)")
-			}
-		}
-		
-		let authority = try deserialize(container.authority.data, or: "Error deserializing authority block")
-		
-		var blocks = [Token_Block]()
-		for block in container.blocks {
-			blocks.append(try deserialize(block.data, or: "Error deserializing block"))
-		}
-		
-		var symbolTable = symbolTable
-		symbolTable
-			.symbols
-			.append(contentsOf: authority.symbols.symbols)
-		
-		for block in blocks {
-			symbolTable
-				.symbols
-				.append(contentsOf: block.symbols.symbols)
-		}
-		
-		let rootKeyId = container.rootKeyId
-		
-		return Self(
-			rootKeyId: rootKeyId,
-			authority: authority,
-			blocks: blocks,
-			symbols: symbolTable,
-			container: container
-		)
-	}
-	
-	/// Deserializes a token and validates the signature using the root public key,
-	/// with an optional custom symbol table
-	public static func fromBase64(
-		_ data: Data,
-		rootKeyIdHandler: (UInt32?) -> PublicKey,
-		symbols: SymbolTable = defaultSymbolTable()
-	) throws -> Self {
-		guard let decoded = Data(base64Encoded: data) else {
-			throw TokenError.format(.blockDeserializationError("Could not decode Base64 data"))
-		}
-		
-		return try Biscuit.from(data: decoded, rootKeyIdHandler: rootKeyIdHandler, symbolTable: symbols)
-	}
-	
-	/// Serializes the token
-	public func serializedData() throws -> Data {
-		guard let container = self.container else {
-			throw TokenError.internalError
-		}
-		
-		return try container.proto.serializedData()
-	}
-	
-	/// Serializes the token
-	public func serializedSize() throws -> Int {
-		return try self.serializedData().count
-	}
-	
-	/// Serializes a sealed version of the token
-	public func seal() throws -> Data {
-		guard let container = self.container else {
-			throw TokenError.internalError
-		}
-		
-		return try container.seal().proto.serializedData()
 	}
 	
 	/// Creates a verifier from this token
@@ -287,53 +188,6 @@ public struct Biscuit {
 		}
 	}
 	
-	/// Pretty printer for this token
-	public var prettyPrinted: String {
-		let authority = prettyPrint(block: self.authority, symbolTable: self.symbols)
-		let blocks = self.blocks.map { prettyPrint(block: $0, symbolTable: self.symbols) }
-		
-		return """
-		Biscuit {{
-			symbols: \(self.symbols.symbols),
-			authority: \(authority),
-			blocks: \(indented(prettyArray(blocks)))
-		}}
-		"""
-	}
-	
-}
-
-private func prettyArray(_ array: [String]) -> String {
-	if array.isEmpty {
-		return "[]"
-	} else {
-		return """
-		[
-			\(array.joined(separator: ",\n\t"))
-		]
-		"""
-	}
-}
-
-private func indented(_ string: String) -> String {
-	return string.replacingOccurrences(of: "\n", with: "\n\t")
-}
-
-private func prettyPrint(block: Token_Block, symbolTable: SymbolTable) -> String {
-	let facts = prettyArray(block.facts.map(symbolTable.printFact))
-	let rules = prettyArray(block.rules.map(symbolTable.printRule))
-	let checks = prettyArray(block.checks.map(symbolTable.printCheck))
-	
-	return """
-	Block {{
-		symbols: \(block.symbols.symbols),
-		version: \(block.version),
-		context: \(block.context ?? "\"\""),
-		facts: \(indented(facts)),
-		rules: \(indented(rules)),
-		checks: \(indented(checks))
-	}}
-	"""
 }
 
 /// A block contained in a token.
@@ -355,10 +209,10 @@ public struct Token_Block {
 	
 	internal init(
 		symbolTable: SymbolTable,
-		facts: [Fact],
-		rules: [Rule],
-		checks: [Check],
-		context: String?,
+		facts: [Fact] = [],
+		rules: [Rule] = [],
+		checks: [Check] = [],
+		context: String? = nil,
 		version: UInt32
 	) {
 		self.symbols = symbolTable
@@ -373,22 +227,15 @@ public struct Token_Block {
 	///
 	/// Blocks should be created through the `BlockBuilder` interface instead, to avoid mistakes.
 	public init(baseSymbols: SymbolTable) {
-		self.init(
-			symbolTable: baseSymbols,
-			facts: [],
-			rules: [],
-			checks: [],
-			context: nil,
-			version: MAX_SCHEMA_VERSION
-		)
+		self.init(symbolTable: baseSymbols, version: MAX_SCHEMA_VERSION)
 	}
 	
-	public mutating func symbolAdd(s: String) -> ID {
-		self.symbols.add(s)
-	}
-	
-	public mutating func symbolInsert(s: String) -> SymbolIndex {
+	public mutating func insertSymbol(s: String) -> SymbolIndex {
 		self.symbols.insert(s)
+	}
+	
+	public mutating func addSymbol(s: String) -> ID {
+		self.symbols.add(s)
 	}
 	
 }

@@ -1,6 +1,6 @@
 //
 //  Indirect.swift
-//  Datalog
+//  Biscuit
 //
 //  Created by Rémi Bardon on 07/09/2021.
 //

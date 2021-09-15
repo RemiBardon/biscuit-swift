@@ -7,7 +7,7 @@
 
 import Foundation
 import OrderedCollections
-import Datalog
+import BiscuitDatalog
 import BiscuitCrypto
 
 extension Proto_Block {
@@ -71,27 +71,27 @@ struct ProtobufToTokenTransformer {
 	}
 	
 	static func tokenExpression(from expression: Proto_ExpressionV2) throws -> Expression {
-		Expression(ops: try expression.ops.map(tokenOp(from:)))
+		Expression(ops: try expression.ops.map(tokenOperation(from:)))
 	}
 	
-	static func tokenOp(from op: Proto_Op) throws -> Op {
-		guard let content = op.content else {
-			throw FormatError.deserializationError("operation is empty")
+	static func tokenOperation(from operation: Proto_Op) throws -> BiscuitDatalog.Operation {
+		guard let content = operation.content else {
+			throw FormatError.deserializationError("Operation is empty")
 		}
 		
 		switch content {
-		case let .value(id):
+		case .value(let id):
 			return .value(try tokenId(from: id))
-		case let .unary(unaryOp):
-			return .unary(try tokenUnaryOp(from: unaryOp))
-		case let .binary(binaryOp):
-			return .binary(try tokenBinaryOp(from: binaryOp))
+		case .unary(let unary):
+			return .unary(try tokenUnaryOperation(from: unary))
+		case .binary(let binary):
+			return .binary(try tokenBinaryOperation(from: binary))
 		}
 	}
 	
-	static func tokenUnaryOp(from unaryOp: Proto_OpUnary) throws -> UnaryOp {
-		guard let kind = unaryOp.optKind else {
-			throw FormatError.deserializationError("unary operation is empty")
+	static func tokenUnaryOperation(from unaryOperation: Proto_OpUnary) throws -> UnaryOperation {
+		guard let kind = unaryOperation.optKind else {
+			throw FormatError.deserializationError("Unary operation is empty")
 		}
 		
 		switch kind {
@@ -104,9 +104,9 @@ struct ProtobufToTokenTransformer {
 		}
 	}
 	
-	static func tokenBinaryOp(from binaryOp: Proto_OpBinary) throws -> BinaryOp {
-		guard let kind = binaryOp.optKind else {
-			throw FormatError.deserializationError("binary operation is empty")
+	static func tokenBinaryOperation(from binaryOperation: Proto_OpBinary) throws -> BinaryOperation {
+		guard let kind = binaryOperation.optKind else {
+			throw FormatError.deserializationError("Binary operation is empty")
 		}
 		
 		switch kind {
@@ -183,7 +183,7 @@ struct ProtobufToTokenTransformer {
 			let newKind: UInt8 = try {
 				switch content {
 				case .variable:
-					throw FormatError.deserializationError("sets cannot contain variables")
+					throw FormatError.deserializationError("Sets cannot contain variables")
 				case .integer:
 					return 2
 				case .string:
@@ -195,12 +195,12 @@ struct ProtobufToTokenTransformer {
 				case .bool:
 					return 6
 				case .set:
-					throw FormatError.deserializationError("sets cannot contain other sets")
+					throw FormatError.deserializationError("Sets cannot contain other sets")
 				}
 			}()
 			if let kind = kind {
 				guard newKind == kind else {
-					throw FormatError.deserializationError("sets elements must have the same type")
+					throw FormatError.deserializationError("Sets elements must have the same type")
 				}
 			} else {
 				kind = newKind
@@ -229,7 +229,7 @@ extension ProtobufToTokenTransformer {
 	
 	static func tokenPolicy(from policy: Proto_Policy) throws -> Policy {
 		guard let kind = policy.optKind else {
-			throw FormatError.deserializationError("invalid policy kind")
+			throw FormatError.deserializationError("Policy kind is empty")
 		}
 		
 		return Policy(

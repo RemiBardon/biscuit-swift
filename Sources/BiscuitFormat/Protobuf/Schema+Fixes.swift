@@ -1,6 +1,6 @@
 //
 //  Schema+Fixes.swift
-//  Schema+Fixes
+//  Biscuit
 //
 //  Created by Rémi Bardon on 09/09/2021.
 //

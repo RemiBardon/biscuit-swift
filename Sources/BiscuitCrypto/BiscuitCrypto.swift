@@ -1,6 +1,6 @@
 //
 //  BiscuitCrypto.swift
-//  BiscuitCrypto
+//  Biscuit
 //
 //  Created by Rémi Bardon on 09/09/2021.
 //
@@ -26,11 +26,7 @@ public struct KeyPair {
 	public let privateKey: PrivateKey
 	public var publicKey: PublicKey { privateKey.publicKey }
 	
-	public init() {
-		self.privateKey = .init()
-	}
-	
-	public init(from privateKey: PrivateKey) {
+	public init(from privateKey: PrivateKey = PrivateKey()) {
 		self.privateKey = privateKey
 	}
 	
@@ -63,6 +59,16 @@ public struct Block {
 		self.signature = signature
 	}
 	
+	public func verifySignature(with publicKey: PublicKey) throws {
+		var toVerify = self.data
+		toVerify.append(self.nextKey.rawRepresentation)
+		
+		// FIXME: Replace with SHA512 hashing
+		guard publicKey.isValidSignature(self.signature, for: toVerify) else {
+			throw CryptoError.signature(.invalidSignature("The block has not been signed with the correct key"))
+		}
+	}
+	
 }
 
 public struct Token {
@@ -78,17 +84,15 @@ public struct Token {
 		self.next = next
 	}
 	
-	public init(keyPair: KeyPair, nextKey: KeyPair, message: Data) throws {
-		let signature = try sign(keyPair: keyPair, nextKey: nextKey, message: message)
+	public init(with message: Data, signedBy keyPair: KeyPair, nextKey: KeyPair) throws {
+		let signature = try sign(message, with: keyPair, nextKey: nextKey)
 		let block = Block(data: message, nextKey: nextKey.publicKey, signature: signature)
 		
 		self.init(root: keyPair.publicKey, blocks: [block], next: .secret(nextKey.privateKey))
 	}
 	
-	public func append(nextKey: KeyPair, message: Data) throws -> Self {
-		let keyPair = try self.next.keyPair()
-		
-		let signature = try sign(keyPair: keyPair, nextKey: nextKey, message: message)
+	public func append(_ message: Data, nextKey: KeyPair) throws -> Self {
+		let signature = try sign(message, with: self.next.keyPair(), nextKey: nextKey)
 		let block = Block(data: message, nextKey: nextKey.publicKey, signature: signature)
 		
 		var newToken = Token(root: self.root, blocks: self.blocks, next: .secret(nextKey.privateKey))
@@ -97,32 +101,35 @@ public struct Token {
 		return newToken
 	}
 	
-	public func verify(with root: PublicKey) throws {
-		// FIXME: Try batched signature verification
-		var currentPub = root
-		
+	public func verify(with rootPublicKey: PublicKey) throws {
 		// Verify all blocks
-		for block in self.blocks {
-			try verifyBlockSignature(of: block, with: currentPub)
+		let lastPublicKey: PublicKey = try {
+			var currentPublicKey = rootPublicKey
 			
-			currentPub = block.nextKey
-		}
+			// FIXME: Try batched signature verification
+			for block in self.blocks {
+				try block.verifySignature(with: currentPublicKey)
+				currentPublicKey = block.nextKey
+			}
+			
+			return currentPublicKey
+		}()
 		
 		switch self.next {
-		case let .secret(privateKey):
-			if currentPub.rawRepresentation != privateKey.publicKey.rawRepresentation {
-				throw FormatError.signature(.invalidSignature("The last public key does not match the private key"))
+		case .secret(let privateKey):
+			guard lastPublicKey.rawRepresentation == privateKey.publicKey.rawRepresentation else {
+				throw CryptoError.signature(.invalidSignature("The last public key does not match the private key"))
 			}
-		case let .seal(signature):
-			// FIXME: Replace with SHA512 hashing
+		case .seal(let signature):
 			var toVerify = Data()
 			for block in self.blocks {
 				toVerify.append(block.data)
 				toVerify.append(block.nextKey.rawRepresentation)
 			}
 			
-			guard currentPub.isValidSignature(signature, for: toVerify) else {
-				throw FormatError.signature(.invalidSignature("Block signature is invalid"))
+			// FIXME: Replace with SHA512 hashing
+			guard lastPublicKey.isValidSignature(signature, for: toVerify) else {
+				throw CryptoError.signature(.invalidSignature("Block signature is invalid"))
 			}
 		}
 	}
@@ -136,7 +143,7 @@ public enum NextToken {
 	public func keyPair() throws -> KeyPair {
 		switch self {
 		case .seal:
-			throw TokenError.sealed
+			throw CryptoError.sealed
 		case let .secret(privateKey):
 			return KeyPair(from: privateKey)
 		}
@@ -144,28 +151,18 @@ public enum NextToken {
 	
 }
 
-public func sign(keyPair: KeyPair, nextKey: KeyPair, message: Data) throws -> Signature {
+public func sign(_ message: Data, with keyPair: KeyPair, nextKey: KeyPair) throws -> Signature {
 	var toSign = message
 	toSign.append(nextKey.publicKey.rawRepresentation)
-
-	return try sign(keyPair: keyPair, message: toSign)
+	
+	return try sign(toSign, with: keyPair)
 }
 
-public func sign(keyPair: KeyPair, message: Data) throws -> Signature {
+public func sign(_ message: Data, with keyPair: KeyPair) throws -> Signature {
 	// FIXME: replace with SHA512 hashing
 	do {
 		return try keyPair.privateKey.signature(for: message)
 	} catch {
-		throw FormatError.signature(.invalidSignatureGeneration(error))
-	}
-}
-
-public func verifyBlockSignature(of block: Block, with publicKey: PublicKey) throws {
-	// FIXME: Replace with SHA512 hashing
-	var toVerify = block.data
-	toVerify.append(block.nextKey.rawRepresentation)
-
-	guard publicKey.isValidSignature(block.signature, for: toVerify) else {
-		throw FormatError.signature(.invalidSignature("The block has not been signed with the correct key"))
+		throw CryptoError.signature(.invalidSignatureGeneration(error))
 	}
 }

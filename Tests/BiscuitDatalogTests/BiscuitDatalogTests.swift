@@ -1,17 +1,17 @@
 //
-//  DatalogTests.swift
-//  DatalogTests
+//  BiscuitDatalogTests.swift
+//  Biscuit
 //
 //  Created by Rémi Bardon on 11/05/2021.
 //
 
 import XCTest
-@testable import Datalog
+@testable import BiscuitDatalog
 
-final class DatalogTests: XCTestCase {
+final class BiscuitDatalogTests: XCTestCase {
 	
 	func testFamily() throws {
-		var w = World()
+		var w = World.empty
 		var syms = SymbolTable()
 		
 		let a = syms.add("A")
@@ -117,7 +117,7 @@ final class DatalogTests: XCTestCase {
 	}
 	
 	func testNumbers() {
-		var w = World()
+		var w = World.empty
 		var syms = SymbolTable()
 		
 		let abc = syms.add("abc")
@@ -202,7 +202,7 @@ final class DatalogTests: XCTestCase {
 	}
 	
 	func testString() {
-		var w = World()
+		var w = World.empty
 		var syms = SymbolTable()
 		
 		let app0 = syms.add("app_0")
@@ -279,7 +279,7 @@ final class DatalogTests: XCTestCase {
 	}
 	
 	func testDateConstraint() {
-		var w = World()
+		var w = World.empty
 		var syms = SymbolTable()
 		
 		let t1 = Date()
@@ -358,7 +358,7 @@ final class DatalogTests: XCTestCase {
 	}
 	
 	func testSetConstraint() {
-		var w = World()
+		var w = World.empty
 		var syms = SymbolTable()
 		
 		let abc = syms.add("abc")
@@ -443,7 +443,7 @@ final class DatalogTests: XCTestCase {
 	}
 	
 	func testResource() {
-		var w = World()
+		var w = World.empty
 		var syms = SymbolTable()
 		
 		let resource = syms.insert("resource")
@@ -496,7 +496,7 @@ final class DatalogTests: XCTestCase {
 	}
 	
 	func testIntExpr() {
-		var w = World()
+		var w = World.empty
 		var syms = SymbolTable()
 		
 		let abc = syms.add("abc")

@@ -6,7 +6,8 @@
 //
 
 import Foundation
-import Datalog
+import BiscuitShared
+import BiscuitDatalog
 import BiscuitCrypto
 
 /// Verifier structure and associated functions
@@ -16,8 +17,8 @@ import BiscuitCrypto
 /// Can be created from `Biscuit.verify` or `Verifier.init`
 public struct Verifier {
 	
-	var world: World
-	var symbols: SymbolTable
+	private(set) var world: World
+	private(set) var symbols: SymbolTable
 	private(set) var checks: [Check]
 	let tokenChecks: [[Check]]
 	private(set) var policies: [Policy]
@@ -40,7 +41,7 @@ public struct Verifier {
 	}
 	
 	internal init(fromToken token: Biscuit) {
-		self.init(world: World(), symbols: defaultSymbolTable(), token: token)
+		self.init(world: World.empty, symbols: .defaultTable, token: token)
 	}
 	
 	/// creates a new empty verifier
@@ -53,46 +54,7 @@ public struct Verifier {
 	/// with the facts, rules and checks, and each time a token must be checked,
 	/// clone the verifier and load the token with [`Verifier.add_token`]
 	public init() {
-		self.init(world: World(), symbols: defaultSymbolTable())
-	}
-	
-	public init(fromData data: Data) throws {
-		let policies: Proto_VerifierPolicies
-		do {
-			policies = try Proto_VerifierPolicies(serializedData: data)
-		} catch {
-			throw FormatError.deserializationError("Deserialization error: \(String(reflecting: error))")
-		}
-		
-		let verifier = try ProtobufToTokenTransformer.tokenVerifier(from: policies)
-		
-		let world = World(facts: Set(verifier.facts), rules: verifier.rules)
-		
-		self.init(
-			world: world,
-			symbols: verifier.symbols,
-			checks: verifier.checks,
-			policies: verifier.policies
-		)
-	}
-	
-	// Serializes a verifier's content
-	//
-	// You can use this to save a set of policies and load them quickly before
-	// verification, or to store a verification context to debug it later
-	public func save() throws -> Data {
-		let checks = self.checks + self.tokenChecks.flatMap { $0 }
-		
-		let policies = VerifierPolicies(
-			version: MAX_SCHEMA_VERSION,
-			symbols: self.symbols,
-			facts: Array(self.world.facts),
-			rules: self.world.rules,
-			checks: checks,
-			policies: self.policies
-		)
-		
-		return try policies.proto.serializedData()
+		self.init(world: World.empty, symbols: .defaultTable)
 	}
 	
 	/// Add a fact to the verifier
@@ -114,7 +76,7 @@ public struct Verifier {
 	///
 	/// This method can specify custom runtime limits
 	public mutating func query(rule: Rule, withLimits limits: VerifierLimits) throws -> [Fact] {
-		try self.world.runWithLimits(symbols: self.symbols, limits: RunLimits(from: limits))
+		try self.world.runWithLimits(RunLimits(from: limits), symbols: self.symbols)
 		return self.world.queryRule(rule, symbols: self.symbols)
 	}
 	
@@ -191,11 +153,11 @@ public struct Verifier {
 	public mutating func verify(withLimits limits: VerifierLimits) throws -> Int {
 		let timeLimit = Date() + limits.maxTime
 		var errors = [FailedCheckError]()
-		var policyResult: Result<Int, TokenError>? = nil
+		var policyResult: Result<Int, BiscuitError>? = nil
 		
 		// FIXME: Should check for the presence of any other symbol in the token
 		if self.symbols.get("authority") == nil || self.symbols.get("ambient") == nil {
-			throw TokenError.missingSymbols
+			throw BiscuitError.missingSymbols
 		}
 		
 		let authority_index = self.symbols.get("authority")!
@@ -225,14 +187,14 @@ public struct Verifier {
 //			}
 			
 			// FIXME: The verifier should be generated with run limits that are "consumed" after each use
-			try self.world.runWithLimits(symbols: self.symbols, limits: RunLimits())
+			try self.world.runWithLimits(RunLimits(), symbols: self.symbols)
 			self.world.clearRules()
 			
 			for (i, check) in self.checks.enumerated() {
 				let successful = try check.queries.allSatisfy { query in
 					let res = self.world.queryMatch(query, symbols: self.symbols)
 					
-					guard Date() < timeLimit else { throw TokenError.runLimit(.timeout) }
+					guard Date() < timeLimit else { throw BiscuitError.runLimit(.timeout) }
 					
 					return res
 				}
@@ -246,7 +208,7 @@ public struct Verifier {
 				let successful = try check.queries.allSatisfy { query in
 					let res = self.world.queryMatch(query, symbols: self.symbols)
 					
-					guard Date() < timeLimit else { throw TokenError.runLimit(.timeout) }
+					guard Date() < timeLimit else { throw BiscuitError.runLimit(.timeout) }
 					
 					return res
 				}
@@ -260,7 +222,7 @@ public struct Verifier {
 				for query in policy.queries {
 					let res = self.world.queryMatch(query, symbols: self.symbols)
 					
-					guard Date() < timeLimit else { throw TokenError.runLimit(.timeout) }
+					guard Date() < timeLimit else { throw BiscuitError.runLimit(.timeout) }
 					
 					if res {
 						switch policy.kind {
@@ -293,14 +255,14 @@ public struct Verifier {
 					self.world.addRule(rule)
 				}
 				
-				try self.world.runWithLimits(symbols: self.symbols, limits: RunLimits())
+				try self.world.runWithLimits(RunLimits(), symbols: self.symbols)
 				self.world.clearRules()
 				
 				for (j, check) in block.checks.enumerated() {
 					let successful = try check.queries.allSatisfy { query in
 						let res = self.world.queryMatch(query, symbols: self.symbols)
 						
-						guard Date() < timeLimit else { throw TokenError.runLimit(.timeout) }
+						guard Date() < timeLimit else { throw BiscuitError.runLimit(.timeout) }
 						
 						return res
 					}
@@ -317,7 +279,7 @@ public struct Verifier {
 		}
 		
 		guard errors.isEmpty else {
-			throw TokenError.failedLogic(.failedChecks(errors))
+			throw BiscuitError.failedLogic(.failedChecks(errors))
 		}
 		
 		switch policyResult {
@@ -326,42 +288,8 @@ public struct Verifier {
 		case .failure(let error):
 			throw error
 		case .none:
-			throw TokenError.failedLogic(.noMatchingPolicy)
+			throw BiscuitError.failedLogic(.noMatchingPolicy)
 		}
-	}
-	
-	/// Print the content of the verifier
-	public func printWorld() -> String {
-		var facts = self.world.facts.map(self.symbols.printFact)
-		facts.sort()
-		
-		var rules = self.world.rules.map(self.symbols.printRule)
-		rules.sort()
-		
-		var checks = [String]()
-		for (index, check) in self.checks.enumerated() {
-			checks.append("Verifier[\(index)]: \(check)")
-		}
-		
-		for (i, blockChecks) in self.tokenChecks.enumerated() {
-			for (j, check) in blockChecks.enumerated() {
-				checks.append("Block[\(i)][\(j)]: \(self.symbols.printCheck(check))")
-			}
-		}
-		
-		var policies = [String]()
-		for policy in self.policies {
-			policies.append(String(describing: policy))
-		}
-		
-		return """
-		World {{
-			facts: \(String(reflecting: facts))
-			rules: \(String(reflecting: rules))
-			checks: \(String(reflecting: checks))
-			policies: \(String(reflecting: policies))
-		}}
-		"""
 	}
 	
 	/// Returns all of the data loaded in the verifier
@@ -373,6 +301,7 @@ public struct Verifier {
 			self.policies
 		)
 	}
+	
 }
 
 public struct VerifierPolicies {
@@ -400,15 +329,14 @@ public struct VerifierLimits {
 	/// Maximum execution time **in seconds**
 	public let maxTime: TimeInterval
 	
-	public init(maxFacts: UInt32, maxIterations: UInt32, maxTime: TimeInterval) {
+	public init(
+		maxFacts: UInt32 = 1_000,
+		maxIterations: UInt32 = 100,
+		maxTime: TimeInterval = 0.001
+	) {
 		self.maxFacts = maxFacts
 		self.maxIterations = maxIterations
 		self.maxTime = maxTime
-	}
-	
-	public init() {
-		// FIXME: I had to increase `maxTime` to 2ms otherwise some tests would not succeed
-		self.init(maxFacts: 1_000, maxIterations: 100, maxTime: 0.002)
 	}
 	
 }

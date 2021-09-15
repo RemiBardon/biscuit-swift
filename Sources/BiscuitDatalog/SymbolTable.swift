@@ -1,34 +1,43 @@
 //
 //  SymbolTable.swift
-//  Datalog
+//  Biscuit
 //
 //  Created by Rémi Bardon on 10/05/2021.
 //
 
 import Foundation
+import OrderedCollections
 
 public typealias SymbolIndex = UInt64
 
 public struct SymbolTable {
 	
-	public var symbols: [String]
+	public typealias Element = String
 	
-	public init(symbols: [String] = []) {
-		self.symbols = symbols
+	public private(set) var symbols: OrderedSet<Element>
+	
+	public init(symbols: [Element] = []) {
+		self.symbols = OrderedSet(symbols)
 	}
 	
-	public mutating func insert(_ s: String) -> SymbolIndex {
-		if let index = self.symbols.firstIndex(of: s) {
-			return UInt64(index)
-		} else {
-			self.symbols.append(s)
-			return UInt64(self.symbols.count - 1)
-		}
+	@discardableResult public mutating func insert(_ s: String) -> SymbolIndex {
+		return SymbolIndex(self.symbols.append(s).index)
 	}
 	
-	public mutating func add(_ s: String) -> ID {
-		let id = self.insert(s)
-		return .string(id)
+	@discardableResult public mutating func insert<S: Sequence>(
+		contentsOf elements: S
+	) -> [SymbolIndex] where S.Element == Element {
+		return elements.map { self.insert($0) }
+	}
+	
+	@discardableResult public mutating func add(_ s: String) -> ID {
+		return .string(self.insert(s))
+	}
+	
+	@discardableResult public mutating func add<S: Sequence>(
+		contentsOf elements: S
+	) -> [ID] where S.Element == Element {
+		return elements.map { self.add($0) }
 	}
 	
 	public func get(_ s: String) -> SymbolIndex? {
@@ -106,6 +115,26 @@ public struct SymbolTable {
 		let queries = c.queries.map(self.printRuleBody)
 		
 		return "check if \(queries.joined(separator: " or "))"
+	}
+	
+}
+
+extension SymbolTable {
+	
+	/// Some symbols are predefined and available in every implementation,
+	/// to avoid transmitting them with every token.
+	public static var defaultTable: Self {
+		var syms = SymbolTable()
+		
+		syms.insert("authority")
+		syms.insert("ambient")
+		syms.insert("resource")
+		syms.insert("operation")
+		syms.insert("right")
+		syms.insert("current_time")
+		syms.insert("revocation_id")
+		
+		return syms
 	}
 	
 }

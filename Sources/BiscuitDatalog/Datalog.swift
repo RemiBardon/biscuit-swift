@@ -1,6 +1,6 @@
 //
 //  Datalog.swift
-//  Datalog
+//  Biscuit
 //
 //  Created by Rémi Bardon on 10/05/2021.
 //
@@ -377,13 +377,13 @@ public struct World {
 	public private(set) var facts: Set<Fact>
 	public private(set) var rules: [Rule]
 	
+	public static var empty: Self {
+		Self(facts: Set(), rules: [])
+	}
+	
 	public init(facts: Set<Fact>, rules: [Rule]) {
 		self.facts = facts
 		self.rules = rules
-	}
-	
-	public init() {
-		self.init(facts: .init(), rules: .init())
 	}
 	
 	public mutating func addFact(_ fact: Fact) {
@@ -399,73 +399,69 @@ public struct World {
 	}
 	
 	public mutating func run(symbols: SymbolTable) throws {
-		try self.runWithLimits(symbols: symbols, limits: RunLimits())
+		try self.runWithLimits(RunLimits(), symbols: symbols)
 	}
 	
-	public mutating func runWithLimits(symbols: SymbolTable, limits: RunLimits) throws {
-		let start = Date()
-		let timeLimit = start + limits.maxTime
+	public mutating func runWithLimits(_ limits: RunLimits, symbols: SymbolTable) throws {
+		let timeLimit = Date() + limits.maxTime
 		var index = 0
 		
 		repeat {
 			var newFacts = [Fact]()
 			
+			// Generate new facts
 			for rule in self.rules {
 				newFacts.append(contentsOf: rule.apply(facts: self.facts, symbols: symbols))
-//				print("newFacts after applying \(String(reflecting: rule)):\n\(String(reflecting: newFacts))")
+//				print("newFacts after applying rule \(String(reflecting: rule)): \(String(reflecting: newFacts))")
 			}
 			
-			let count = self.facts.count
+			let countBeforeUnion = self.facts.count
 			self.facts.formUnion(newFacts)
-			if self.facts.count == count {
+			
+			if self.facts.count == countBeforeUnion {
+				// Stop infinite loop if we did not generate any new fact
 				break
+			} else {
+				index += 1
 			}
 			
-			index += 1
-			if index == limits.maxIterations {
+			// Check runtime limits
+			guard index < limits.maxIterations else {
 				throw RunLimitError.tooManyIterations
 			}
-			
-			if self.facts.count >= limits.maxFacts {
+			guard self.facts.count < limits.maxFacts else {
 				throw RunLimitError.tooManyFacts
 			}
-			
-			let now = Date()
-			if now >= timeLimit {
+			guard Date() < timeLimit else {
 				throw RunLimitError.timeout
 			}
 		} while true
 	}
 	
 	public func query(_ pred: Predicate) -> [Fact] {
-		self.facts
-			.filter { f in
-				f.predicate.name == pred.name
-					&& zip(f.predicate.ids, pred.ids).allSatisfy { (fid, pid) in
-						switch (fid, pid) {
-//						case (.symbol, .variable):
-//							return true
-//						case let (.symbol(i), .symbol(j)):
-//							return i == j
-						case (_, .variable):
-							return true
-						case let (.integer(i), .integer(j)):
-							return i == j
-						case let (.string(i), .string(j)):
-							return i == j
-						case let (.date(i), .date(j)):
-							return i == j
-						case let (.bytes(i), .bytes(j)):
-							return i == j
-						case let (.bool(i), .bool(j)):
-							return i == j
-						case let (.set(i), .set(j)):
-							return i == j
-						default:
-							return false
-						}
+		self.facts.filter { fact in
+			fact.predicate.name == pred.name
+				&& zip(fact.predicate.ids, pred.ids).allSatisfy { (fid, pid) in
+					switch (fid, pid) {
+					case (_, .variable):
+						return true
+					case let (.integer(i), .integer(j)):
+						return i == j
+					case let (.string(i), .string(j)):
+						return i == j
+					case let (.date(i), .date(j)):
+						return i == j
+					case let (.bytes(i), .bytes(j)):
+						return i == j
+					case let (.bool(i), .bool(j)):
+						return i == j
+					case let (.set(i), .set(j)):
+						return i == j
+					default:
+						return false
 					}
-			}
+				}
+		}
 	}
 	
 	public mutating func queryRule(_ rule: Rule, symbols: SymbolTable) -> [Fact] {
@@ -474,45 +470,6 @@ public struct World {
 	
 	public mutating func queryMatch(_ rule: Rule, symbols: SymbolTable) -> Bool {
 		rule.findMatch(facts: self.facts, symbols: symbols)
-	}
-	
-}
-
-public struct RunLimits {
-	
-	/// Maximum number of Datalog facts (memory usage)
-	public let maxFacts: UInt32
-	/// Maximum number of iterations of the rules applications (prevents degenerate rules)
-	public let maxIterations: UInt32
-	/// Maximum execution time **in seconds**
-	public let maxTime: TimeInterval
-	
-	public init(maxFacts: UInt32, maxIterations: UInt32, maxTime: TimeInterval) {
-		self.maxFacts = maxFacts
-		self.maxIterations = maxIterations
-		self.maxTime = maxTime
-	}
-	
-	public init() {
-		// FIXME: I had to increase `maxTime` to 2ms otherwise some tests would not succeed
-		self.init(maxFacts: 1_000, maxIterations: 100, maxTime: 0.002)
-	}
-	
-}
-
-public enum RunLimitError: Error, CustomStringConvertible {
-	
-	case tooManyFacts, tooManyIterations, timeout
-	
-	public var description: String {
-		switch self {
-		case .tooManyFacts:
-			return "too many facts generated"
-		case .tooManyIterations:
-			return "too many engine iterations"
-		case .timeout:
-			return "spent too much time verifying"
-		}
 	}
 	
 }

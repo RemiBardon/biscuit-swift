@@ -5,10 +5,10 @@
 //  Created by Rémi Bardon on 10/09/2021.
 //
 
-import Datalog
+import BiscuitDatalog
 
 public enum PolicyKind {
-	
+
 	case allow, deny
 	
 }

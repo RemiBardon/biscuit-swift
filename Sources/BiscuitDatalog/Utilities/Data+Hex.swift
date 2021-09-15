@@ -1,6 +1,6 @@
 //
 //  Data+Hex.swift
-//  Datalog
+//  Biscuit
 //
 //  Created by Rémi Bardon on 10/05/2021.
 //

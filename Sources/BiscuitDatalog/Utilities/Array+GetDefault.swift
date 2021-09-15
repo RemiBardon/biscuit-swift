@@ -1,13 +1,13 @@
 //
-//  Array+GetDefault.swift
-//  Datalog
+//  RandomAccessCollection+GetDefault.swift
+//  Biscuit
 //
 //  Created by Rémi Bardon on 10/05/2021.
 //
 
 import Foundation
 
-extension Array {
+extension RandomAccessCollection where Index: BinaryInteger {
 	
 	/// Safe subscript:
 	///
@@ -27,8 +27,8 @@ extension Array {
 	/// let anon2 = names[1, default: "Anonymous"]
 	/// let anon3 = names[556, default: "Anonymous"]
 	/// ```
-	public subscript(index: Int, default defaultValue: @autoclosure () -> Element) -> Element {
-		guard index >= 0, index < endIndex else {
+	public subscript(index: Index, default defaultValue: @autoclosure () -> Element) -> Element {
+		guard index >= 0, index < self.endIndex else {
 			return defaultValue()
 		}
 		

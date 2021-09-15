@@ -17,7 +17,7 @@ let package = Package(
 	],
 	products: [
 		// Products define the executables and libraries a package produces, and make them visible to other packages.
-		.library(name: "Biscuit", targets: ["Datalog", "BiscuitCrypto", "Format"]),
+		.library(name: "Biscuit", targets: ["BiscuitDatalog", "BiscuitCrypto", "BiscuitFormat"]),
 	],
 	dependencies: [
 		.package(url: "https://github.com/apple/swift-collections", .upToNextMinor(from: "0.0.2")),
@@ -27,24 +27,28 @@ let package = Package(
 	targets: [
 		// Targets are the basic building blocks of a package. A target can define a module or a test suite.
 		// Targets can depend on other targets in this package, and on products in packages this package depends on.
+		.target(name: "BiscuitShared"),
 		.target(
-			name: "Datalog",
+			name: "BiscuitDatalog",
 			dependencies: [
+				.target(name: "BiscuitShared"),
 				.product(name: "OrderedCollections", package: "swift-collections"),
 			]
 		),
-		.testTarget(name: "DatalogTests", dependencies: ["Datalog"]),
+		.testTarget(name: "BiscuitDatalogTests", dependencies: ["BiscuitDatalog"]),
 		.target(
 			name: "BiscuitCrypto",
 			dependencies: [
+				.target(name: "BiscuitShared"),
 				.product(name: "Crypto", package: "swift-crypto"),
 			]
 		),
 		.testTarget(name: "BiscuitCryptoTests", dependencies: ["BiscuitCrypto"]),
 		.target(
-			name: "Format",
+			name: "BiscuitFormat",
 			dependencies: [
-				.target(name: "Datalog"),
+				.target(name: "BiscuitShared"),
+				.target(name: "BiscuitDatalog"),
 				.target(name: "BiscuitCrypto"),
 				.product(name: "SwiftProtobuf", package: "swift-protobuf"),
 				.product(name: "OrderedCollections", package: "swift-collections"),

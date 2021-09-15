@@ -17,11 +17,12 @@ let package = Package(
 	],
 	products: [
 		// Products define the executables and libraries a package produces, and make them visible to other packages.
-		.library(name: "Biscuit", targets: ["Datalog", "BiscuitCrypto"]),
+		.library(name: "Biscuit", targets: ["Datalog", "BiscuitCrypto", "Format"]),
 	],
 	dependencies: [
 		.package(url: "https://github.com/apple/swift-collections", .upToNextMinor(from: "0.0.2")),
 		.package(url: "https://github.com/apple/swift-crypto", .upToNextMinor(from: "1.1.6")),
+		.package(url: "https://github.com/apple/swift-protobuf", .upToNextMinor(from: "1.17.0")),
 	],
 	targets: [
 		// Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -40,5 +41,17 @@ let package = Package(
 			]
 		),
 		.testTarget(name: "BiscuitCryptoTests", dependencies: ["BiscuitCrypto"]),
+		.target(
+			name: "Format",
+			dependencies: [
+				.target(name: "Datalog"),
+				.target(name: "BiscuitCrypto"),
+				.product(name: "SwiftProtobuf", package: "swift-protobuf"),
+				.product(name: "OrderedCollections", package: "swift-collections"),
+			],
+			resources: [
+				.process("Protobuf/schema.proto"),
+			]
+		),
 	]
 )

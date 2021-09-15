@@ -13,7 +13,7 @@ public enum ID: Hashable {
 	case integer(Int64)
 	case string(SymbolIndex)
 	case date(UInt64)
-	case bytes([UInt8])
+	case bytes(Data)
 	case bool(Bool)
 	case set(OrderedSet<ID>)
 }
@@ -53,6 +53,12 @@ public struct Rule {
 	public let head: Predicate
 	public let body: [Predicate]
 	public let expressions: [Expression]
+	
+	public init(head: Predicate, body: [Predicate], expressions: [Expression]) {
+		self.head = head
+		self.body = body
+		self.expressions = expressions
+	}
 	
 	/// Gather all of the variables used in that rule
 	private var variablesSet: Set<UInt32> {
@@ -106,7 +112,13 @@ public struct Rule {
 }
 
 public struct Check {
+	
 	public let queries: [Rule]
+	
+	public init(queries: [Rule]) {
+		self.queries = queries
+	}
+	
 }
 
 /// Recursive iterator for rule application
@@ -365,9 +377,13 @@ public struct World {
 	public private(set) var facts: Set<Fact>
 	public private(set) var rules: [Rule]
 	
+	public init(facts: Set<Fact>, rules: [Rule]) {
+		self.facts = facts
+		self.rules = rules
+	}
+	
 	public init() {
-		self.facts = Set<Fact>()
-		self.rules = [Rule]()
+		self.init(facts: .init(), rules: .init())
 	}
 	
 	public mutating func addFact(_ fact: Fact) {
@@ -376,6 +392,10 @@ public struct World {
 	
 	public mutating func addRule(_ rule: Rule) {
 		self.rules.append(rule)
+	}
+	
+	public mutating func clearRules() {
+		self.rules.removeAll()
 	}
 	
 	public mutating func run(symbols: SymbolTable) throws {
@@ -460,16 +480,22 @@ public struct World {
 
 public struct RunLimits {
 	
+	/// Maximum number of Datalog facts (memory usage)
 	public let maxFacts: UInt32
+	/// Maximum number of iterations of the rules applications (prevents degenerate rules)
 	public let maxIterations: UInt32
-	/// Max time **in seconds**
+	/// Maximum execution time **in seconds**
 	public let maxTime: TimeInterval
 	
-	init() {
-		self.maxFacts = 1000
-		self.maxIterations = 100
+	public init(maxFacts: UInt32, maxIterations: UInt32, maxTime: TimeInterval) {
+		self.maxFacts = maxFacts
+		self.maxIterations = maxIterations
+		self.maxTime = maxTime
+	}
+	
+	public init() {
 		// FIXME: I had to increase `maxTime` to 2ms otherwise some tests would not succeed
-		self.maxTime = 0.002
+		self.init(maxFacts: 1_000, maxIterations: 100, maxTime: 0.002)
 	}
 	
 }

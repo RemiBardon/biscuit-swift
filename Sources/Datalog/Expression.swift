@@ -9,25 +9,25 @@ import Foundation
 
 public enum Op {
 	case value(ID)
-	case unary(Unary)
-	case binary(Binary)
+	case unary(UnaryOp)
+	case binary(BinaryOp)
 }
 
-public enum Unary {
+public enum UnaryOp {
 	
 	case negate, parens, length
 	
 	func evaluate(_ value: ID, symbols: SymbolTable) -> ID? {
 		switch (self, value) {
-		case let (Unary.negate, .bool(b)):
+		case let (.negate, .bool(b)):
 			return ID.bool(!b)
-		case let (Unary.parens, i):
+		case let (.parens, i):
 			return i
-		case let (Unary.length, .string(i)):
+		case let (.length, .string(i)):
 			return symbols.getSymbol(i).map { ID.integer(Int64($0.count)) }
-		case let (Unary.length, .bytes(s)):
+		case let (.length, .bytes(s)):
 			return ID.integer(Int64(s.count))
-		case let (Unary.length, .set(s)):
+		case let (.length, .set(s)):
 			return ID.integer(Int64(s.count))
 		default:
 			assertionFailure("Unexpected value type on the stack")
@@ -48,7 +48,7 @@ public enum Unary {
 	
 }
 
-public enum Binary {
+public enum BinaryOp {
 	
 	case lessThan, greaterThan, lessOrEqual, greaterOrEqual, equal, contains, prefix, suffix, regex
 	case add, sub, mul, div, and, or, intersection, union
@@ -188,6 +188,10 @@ public enum Binary {
 public struct Expression {
 	
 	public let ops: [Op]
+	
+	public init(ops: [Op]) {
+		self.ops = ops
+	}
 	
 	public func evaluate(_ values: Dictionary<UInt32, ID>, symbols: SymbolTable) -> ID? {
 		var stack = [ID]()

@@ -11,7 +11,11 @@ public typealias SymbolIndex = UInt64
 
 public struct SymbolTable {
 	
-	public var symbols = [String]()
+	public var symbols: [String]
+	
+	public init(symbols: [String] = []) {
+		self.symbols = symbols
+	}
 	
 	public mutating func insert(_ s: String) -> SymbolIndex {
 		if let index = self.symbols.firstIndex(of: s) {

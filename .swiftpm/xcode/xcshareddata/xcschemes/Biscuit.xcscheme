@@ -28,6 +28,20 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "Datalog"
+               BuildableName = "Datalog"
+               BlueprintName = "Datalog"
+               ReferencedContainer = "container:">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "BiscuitCrypto"
                BuildableName = "BiscuitCrypto"
                BlueprintName = "BiscuitCrypto"
@@ -42,9 +56,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "Datalog"
-               BuildableName = "Datalog"
-               BlueprintName = "Datalog"
+               BlueprintIdentifier = "Format"
+               BuildableName = "Format"
+               BlueprintName = "Format"
                ReferencedContainer = "container:">
             </BuildableReference>
          </BuildActionEntry>
@@ -59,6 +73,20 @@
                BlueprintIdentifier = "DatalogTests"
                BuildableName = "DatalogTests"
                BlueprintName = "DatalogTests"
+               ReferencedContainer = "container:">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "Token"
+               BuildableName = "Token"
+               BlueprintName = "Token"
                ReferencedContainer = "container:">
             </BuildableReference>
          </BuildActionEntry>

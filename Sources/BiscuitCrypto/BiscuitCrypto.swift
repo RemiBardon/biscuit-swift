@@ -51,10 +51,18 @@ public struct KeyPair {
 //}
 
 public struct Block {
+	
 	#warning("data is not a constant because one test needs to change it… we should avoid this")
-	var data: Data
-	let nextKey: PublicKey
+	public var data: Data
+	public let nextKey: PublicKey
 	public let signature: Signature
+	
+	public init(data: Data, nextKey: PublicKey, signature: Signature) {
+		self.data = data
+		self.nextKey = nextKey
+		self.signature = signature
+	}
+	
 }
 
 public struct Token {
@@ -78,14 +86,7 @@ public struct Token {
 	}
 	
 	public func append(nextKey: KeyPair, message: Data) throws -> Self {
-		let keyPair: KeyPair = try {
-			switch self.next {
-			case .seal:
-				throw TokenError.sealed
-			case .secret(let privateKey):
-				return KeyPair(from: privateKey)
-			}
-		}()
+		let keyPair = try self.next.keyPair()
 		
 		let signature = try sign(keyPair: keyPair, nextKey: nextKey, message: message)
 		let block = Block(data: message, nextKey: nextKey.publicKey, signature: signature)
@@ -102,12 +103,7 @@ public struct Token {
 		
 		// Verify all blocks
 		for block in self.blocks {
-			// FIXME: Replace with SHA512 hashing
-			var toVerify = block.data
-			toVerify.append(block.nextKey.rawRepresentation)
-			guard currentPub.isValidSignature(block.signature, for: toVerify) else {
-				throw FormatError.signature(.invalidSignature("The block has not been signed with the correct key"))
-			}
+			try verifyBlockSignature(of: block, with: currentPub)
 			
 			currentPub = block.nextKey
 		}
@@ -134,22 +130,42 @@ public struct Token {
 }
 
 public enum NextToken {
+	
 	case secret(PrivateKey), seal(Signature)
+	
+	public func keyPair() throws -> KeyPair {
+		switch self {
+		case .seal:
+			throw TokenError.sealed
+		case let .secret(privateKey):
+			return KeyPair(from: privateKey)
+		}
+	}
+	
 }
 
-public func sign(
-	keyPair: KeyPair,
-	nextKey: KeyPair,
-	message: Data
-) throws -> Signature {
-	// FIXME: replace with SHA512 hashing
+public func sign(keyPair: KeyPair, nextKey: KeyPair, message: Data) throws -> Signature {
 	var toSign = message
 	toSign.append(nextKey.publicKey.rawRepresentation)
-	
+
+	return try sign(keyPair: keyPair, message: toSign)
+}
+
+public func sign(keyPair: KeyPair, message: Data) throws -> Signature {
+	// FIXME: replace with SHA512 hashing
 	do {
-		let signature = try keyPair.privateKey.signature(for: toSign)
-		return signature
+		return try keyPair.privateKey.signature(for: message)
 	} catch {
 		throw FormatError.signature(.invalidSignatureGeneration(error))
+	}
+}
+
+public func verifyBlockSignature(of block: Block, with publicKey: PublicKey) throws {
+	// FIXME: Replace with SHA512 hashing
+	var toVerify = block.data
+	toVerify.append(block.nextKey.rawRepresentation)
+
+	guard publicKey.isValidSignature(block.signature, for: toVerify) else {
+		throw FormatError.signature(.invalidSignature("The block has not been signed with the correct key"))
 	}
 }
